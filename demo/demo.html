@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta name="keywords" content="CAP,common alerting protocol,upload,AWS, S3">
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+    <meta http-equiv="content-language" content="en">
+    <meta name="description" content="Create and upload an alert hub subscription to AWS S3"/>
+    <meta name="author" content="Eliot Christian"/>
+    <meta name="expires" content="never"/>
+    <title>Create and Upload an Alert Hub Subscription</title>
+        <style> 
+            body { font-family: Verdana, Geneva, sans-serif; font-size:small; }
+            table { border-collapse: collapse; }
+            table, td, th { border-style: hidden; }
+        </style>
+    </head>
+    <body onload="onLoadFunction()">
+<table><tr><td style="width:50%;vertical-align:top"><!-- left column: capForm -->
+<form name="capForm">
+<table>
+  <tr>
+    <td title="subscriptionId must be unique and comply with rules for an AWS S3 folder name">
+      <b>subscriptionId</b><br /> 
+        <input onchange="makeJson();" name="subscriptionId" 
+               value="country-gb-city-Sheffield-lang-en" size="40" id=" subscriptionId" />
+    </td>
+  </tr>
+  <tr>
+    <td title="subscriptionName is text intended for people to understand">
+      <b>subscriptionName</b><br /> 
+        <input onchange="makeJson();" name="subscriptionName" 
+               value="Test Public alerts for Sheffield in country-gb, in English" 
+               size="80" id=" subscriptionName" />
+    </td>
+  </tr>
+  <tr>
+    <td title="subscriptionUrl">
+      <b>subscriptionUrl</b><br />  
+        <input onchange="makeJson();" name="subscriptionUrl" 
+               value="https://alert-feeds.s3.amazonaws.com/country-gb-city-Sheffield-lang-en/rss.xml" 
+               size="80" id="subscriptionUrl" />
+    </td>
+  </tr>
+  <tr>
+   <td>
+     <table><tr>
+      <td title="languageOnly must be the two-character code for a natural language">
+      <b>languageOnly</b><br />  
+      <select onchange="makeJson();" name="languageOnly" id="languageOnly"> 
+        <option value="none">Any language</option>
+        <option value="en" selected="selected">en English only</option>
+        <option value="ar">ar Arabic only</option>
+        <option value="ku">ku Kurdish only</option>
+        <option value="cn">cn Chinese only</option>
+        <option value="es">es Spanish only</option>
+        <option value="pt">pt Portugese only</option>
+        <option value="fr">fr French only</option>
+      </select>
+      </td>
+      <td title="highPriorityOnly selects only alerts that meet the High Priority criteria">
+      <b>highPriorityOnly</b><br />
+      <select onchange="makeJson();" name="highPriorityOnly" id="highPriorityOnly"> 
+        <option value="true">High Priority only</option>
+        <option value="false" selected="selected">NOT only High Priority</option>
+      </select>
+      </td>
+      <td title="officialOnly selects only alerts that meet the Official Source criteria">
+      <b>officialOnly</b><br />
+      <select onchange="makeJson();" name="officialOnly" id="officialOnly"> 
+        <option value="true">Official sources only</option>
+        <option value="false" selected="selected">NOT only Official sources</option>
+      </select>
+      </td>
+    </tr></table>
+    </td>
+  </tr>
+  <tr>
+    <td title="xPathFilterId must not be 'none' if an xPath filter is specified">
+      <b>xPathFilterId</b><br />
+      <input onchange="makeJson();" name="xPathFilterId" value="test-public" size="35" id="xPathFilterId"/>
+    </td>
+  </tr>
+  <tr>
+    <td title="xPathFilter implements XPath 2.0, using 'cap' prefix for CAP elements">
+      <b>xPathFilter</b><br />
+      <input onchange="makeJson();" name="xPathFilter" value="//*:status='Test' and //*:scope='Public'" size="80" id="xPathFilter"/>
+    </td>
+  </tr> 
+  <tr>
+    <td title="areaFilterId must not be 'none' if an area filter is specified">
+      <b>areaFilterId</b><br />
+      <input onchange="makeJson();" name="areaFilterId" value="none" size="35" id="areaFilterId"/>
+    </td>
+  </tr>
+  <tr>
+    <td>
+      <table><tr>
+        <td title="'lat,lon radius' in decimal degrees and kilometers">
+          <b>circle</b><br />
+          <input onchange="makeJson();" name="capCircle" value="" size="15" id="capCircle" /><br/>
+          lat,long radius
+        </td>
+        <td title="space-delimited list of 'lat,lon' coordinate pairs" colspan="2">
+          <b>polygon</b><br />
+          <input onchange="makeJson();" name="capPolygon" 
+                 value="53.4,-1.55 53.33,-1.55 53.33,-1.38 53.44,-1.38 53.44,-1.55 53.4,-1.55" 
+                 size="55" id="capPolygon" /><br/>
+          SW SE NE NW SW (lat,lon points)
+        </td>
+      </tr></table>
+    </td> 
+  </tr>
+  <tr>
+    <td title="alerting area" colspan="2">
+      <input value="Draw polygon" type="button" onclick="enableDrawingPolygon();" />
+      <input value="Delete polygon" type="button" 
+             onclick="deleteCapPolygon();document.capForm.capPolygon.value='';document.capForm.capPolygon.onchange();" />
+      <input value="Draw circle"  type="button" onclick="enableDrawingCircle();" />
+      <input value="Delete circle" type="button" 
+             onclick="deleteCapCircle();document.capForm.capCircle.value='';document.capForm.capCircle.onchange();" />
+      <div id="map_canvas" style="width:500px;height:500px;"></div>
+    </td>
+  </tr>
+</table>
+</form>
+</td>
+<td style="width:50%;vertical-align:top"><!-- right column: subscriptionForm -->
+<form name="subscriptionForm" 
+      action="https://alert-hub-subscriptions.s3.amazonaws.com/" method="post" enctype="multipart/form-data">
+	<!-- AWS Post needs Policy and X-Amz-Signature parameters for authentication, which 
+	       is required unless the bucket is configured for public read. Authentication 
+	       is handled when the HTML form is accessed using the generated "pre-signed URL".  
+	-->
+    <input type="hidden" name="key" value="${filename}" id="newFileName" /><br />
+    <input type="hidden" name="acl" value="public-read" />
+    <input type="hidden" name="success_action_redirect" 
+           value="https://alert-hub-subscriptions.s3.amazonaws.com/success.html" />
+    <input type="hidden" name="Content-Type" value="text/xml" /><br />
+    <input type="hidden" name="Content-Disposition" value="" id="attachFileName" />    
+    <input type="hidden" name="X-Amz-Credential" 
+           value="AKIAI4H2CVMIU5MHNJPA/20170101/eu-west-1/s3/aws4_request" />
+    <input type="hidden" name="X-Amz-Algorithm" value="AWS4-HMAC-SHA256" />
+    <input type="hidden" name="X-Amz-Date" value="20170101T060000Z" />
+    <input type="hidden" name="Policy" 
+           value="eyJleHBpcmF0aW9uIjogIjIwMTctMDEtMDZUMDA6MDA6MDBaIiwNCiAgImNvbmRpdGlvbnMiOiBbIA0KICAgIHsiYnVja2V0IjogImFsZXJ0LWh1Yi1pbnB1dCJ9LA0KICAgIFsic3RhcnRzLXdpdGgiLCAiJGtleSIsICIiXSwNCiAgICB7ImFjbCI6ICJwdWJsaWMtcmVhZCJ9LA0KICAgIHsic3VjY2Vzc19hY3Rpb25fcmVkaXJlY3QiOiAiaHR0cHM6Ly9hbGVydC1odWIuczMuYW1hem9uYXdzLmNvbS9tb3N1bC1kYW0tYXIvc3VjY2Vzcy5odG1sIn0sDQogICAgWyJzdGFydHMtd2l0aCIsICIkQ29udGVudC1UeXBlIiwgIiJdLA0KICAgIFsic3RhcnRzLXdpdGgiLCAiJENvbnRlbnQtRGlzcG9zaXRpb24iLCAiIl0sDQogICAgeyJ4LWFtei1jcmVkZW50aWFsIjogIkFLSUFJNEgyQ1ZNSVU1TUhOSlBBLzIwMTcwMTAxL2V1LXdlc3QtMS9zMy9hd3M0X3JlcXVlc3QifSwNCiAgICB7IngtYW16LWFsZ29yaXRobSI6ICJBV1M0LUhNQUMtU0hBMjU2In0sDQogICAgeyJ4LWFtei1kYXRlIjogIjIwMTcwMTAxVDA2MDAwMFoiIH0NCiAgXQ0KfSA=" />
+    <input type="hidden" name="X-Amz-Signature" 
+           value="0024d5a70bdbd60bb84d06aaa77bbf97c852fc5dfcd8f131c61923d1b0e19f4d" />
+    <textarea name="newSubscription" id="newSubscription" cols="60" rows="25"></textarea><br />
+    <input value="Upload New Subscription to Alert Hub" 
+           onclick="uploadSubscription();" 
+           type="button" id="uploadSubscriptionButton" 
+           name="uploadSubscriptionButton" />
+ </form>
+ </td></tr></table>
+<script type="text/javascript" src="https://maps.google.com/maps/api/js?sensor=false&libraries=geometry,drawing"></script>
+<script type="text/javascript" src="selectArea.js"></script>
+<script type="text/javascript">
+var jsonItems = "";
+var subscriptionId = "";
+var subscriptionName = "";
+var subscriptionUrl = "";
+var languageOnly = "";
+var highPriorityOnly = "";
+var officialOnly = "";
+var PathFilterId = "";
+var xPathFilter = "";
+var areaFilterId = "";
+var polygonLatLonCoordinates = "";
+var jsonPolygon = "";
+var circleLatLonRadius = '';
+var jsonCircle = "";
+var areaFilter = "";
+var thisPathName = window.location.pathname;
+//Given pathname like this: '/official-high-priority-public-en/index.html' we want to  
+//extract thisFolderName = 'official-high-priority-public/' and thisLanguage = 'en'
+var lastSlashPos = thisPathName.lastIndexOf("/");
+var thisFolderName = thisPathName.substring(1, lastSlashPos+1);    
+var thisLanguage = thisFolderName.substring(lastSlashPos-3, lastSlashPos-1);    
+var browserMS = false;
+var submitDone = false;
+function makeJson() {
+      subscriptionId = cleanText(document.capForm.subscriptionId.value);
+      if (document.capForm.subscriptionId.value == "") {
+          alert("The subscription id must not be blank.");
+            document.capForm.subscriptionId.focus(); 
+      }
+      subscriptionName = cleanText(document.capForm.subscriptionName.value);
+      if (document.capForm.subscriptionName.value == "") {
+          alert("The subscription name must not be blank.");
+            document.capForm.subscriptionName.focus(); 
+      }
+      subscriptionUrl = cleanText(document.capForm.subscriptionUrl.value);
+      if (document.capForm.subscriptionUrl.value == "") {
+          alert("The subscription URL must not be blank.");
+            document.capForm.subscriptionUrl.focus(); 
+      }
+      languageOnly  = document.capForm.languageOnly.value;
+      highPriorityOnly = document.capForm.highPriorityOnly.value;
+      officialOnly = document.capForm.officialOnly.value;
+      
+      xPathFilterId = cleanText(document.capForm.xPathFilterId.value);
+      if (xPathFilterId == "") {
+          alert("The xPathFilterId must not be blank. Enter 'none' "+
+                "if filter is not needed.");
+            document.capForm.xPathFilterId.focus(); 
+      }
+      if (xPathFilterId.toLowerCase() == "none") { xPathFilterId = "none"; }
+      xPathFilter = cleanText(document.capForm.xPathFilter.value);
+      if (xPathFilterId == "") {
+          alert("The xPathFilter must not be blank. Enter 'none'  "+
+                "if filter is not needed.");
+            document.capForm.xPathFilter.focus(); 
+      }
+      if ((xPathFilterId == "none" && xPathFilter != "none") ||
+              (xPathFilterId != "none" && xPathFilter == "none")) { 
+          alert("If 'none' is entered for xPathFilterId or xPathFilter,  "+
+                "then 'none' must be entered for both.");
+            document.capForm.xPathFilterId.focus(); 
+      }
+      areaFilterId = cleanText(document.capForm.areaFilterId.value);
+      if (areaFilterId == "") {
+          alert("The areaFilterId must not be blank. Enter 'none' "+
+                "if filter is not needed.");
+            document.capForm.areaFilterId.focus(); 
+      }
+      if (areaFilterId.toLowerCase() == "none") { areaFilterId = "none"; }
+      polygonLatLonCoordinates = cleanText(document.capForm.capPolygon.value);
+      if (polygonLatLonCoordinates == "" || polygonLatLonCoordinates.toLowerCase() == "none") {
+          document.capForm.capPolygon.value = "";
+          deleteCapPolygon();
+          jsonPolygon = "[ ]";
+      } else {
+	  	  document.capForm.capPolygon.value = verifyPolygon(document.capForm.capPolygon.value);
+          // Draw the Polygon and set listeners for changes to it
+          drawCapPolygon();
+          jsonPolygon = convertJsonPolygon(polygonLatLonCoordinates);
+      }
+      
+      circleLatLonRadius = cleanText(document.capForm.capCircle.value);
+      if (circleLatLonRadius  == "" || circleLatLonRadius.toLowerCase() == "none") {
+          document.capForm.capCircle.value = "";
+		  deleteCapCircle();
+		  jsonCircle = "none";
+      } else {
+          document.capForm.capCircle.value = verifyCircle(circleLatLonRadius); 
+          // Draw the Circle and set listeners for changes to it
+          drawCapCircle();
+          jsonCircle = convertJsonCircle(circleLatLonRadius);
+      }
+      areaFilter = 
+            "        \"polygonCoordinates\": "  + jsonPolygon  + ",\n" +
+            "        \"circleCenterRadius\": \""  + jsonCircle  + "\"\n";
+      jsonItems = "    \"subscriptionId\": \""  + subscriptionId  + "\",\n";
+      jsonItems += "    \"subscriptionName\": \""  + subscriptionName  + "\",\n";
+      jsonItems += "    \"subscriptionUrl\": \""  + subscriptionUrl  + "\",\n";
+      jsonItems += "    \"languageOnly\": \""  + languageOnly  + "\",\n";
+      jsonItems += "    \"highPriorityOnly\": "  + highPriorityOnly  + ",\n";
+      jsonItems += "    \"officialOnly\": "  + officialOnly  + ",\n";
+      jsonItems += "    \"xPathFilterId\": \""  + xPathFilterId  + "\",\n";
+      jsonItems += "    \"xPathFilter\": \""  + xPathFilter  + "\",\n";
+      jsonItems += "    \"areaFilterId\": \""  + areaFilterId  + "\",\n";
+      jsonItems += "    \"areaFilter\": {\n" + areaFilter +    "    }\n";
+      document.subscriptionForm.newSubscription.value = 
+            " {\n" + "  \"subscription\": {\n" + jsonItems +     "  }\n" + " }";
+ }
+    
+ function uploadSubscription() {   
+    if (!submitDone) {
+        submitDone = true;
+        document.getElementById("uploadSubscriptionButton").value = "Uploading Subscription, please wait...";
+        document.getElementById("uploadSubscriptionButton").disabled = true;
+    } 
+    try { 
+          document.getElementById("subscriptionForm").submit();
+    } catch ( e ) { 
+        alert ( e ); 
+    } 
+}
+function cleanText(stringToXML) {
+    // This function removes markup that is not valid in an XML element. 
+    // This occurs, e.g., when users cut and paste content from an HTML document.
+    if (typeof elementDiv === "undefined") {
+    var elementDiv = document.createElement("div");
+  }
+  elementDiv.innerHTML = stringToXML.trim();
+    return elementDiv.textContent;
+}
+function convertJsonPolygon(polygonLatLonCoordinates) {
+    // As required by JSON for representing map coordinates, this function 
+    // converts the order of each coordinate pair from lat,lon to x,y.
+    //alert("In convertJsonPolygon with coordinates:\n"+ polygonLatLonCoordinates);
+    var jsonPolygon = "";
+    var coordPairs = polygonLatLonCoordinates.split(" ");
+	for(var i = 0; i < coordPairs.length; i++) {
+		coordPairs[i] = coordPairs[i].replace(/^\s*/, "").replace(/\s*$/, "");
+ 		thisLatLon = coordPairs[i].split(",");
+ 		if (i > 0) { jsonPolygon += ", " }
+ 		jsonPolygon += "["+thisLatLon[1]+","+thisLatLon[0]+"]";
+ 	}
+    return "[ "+jsonPolygon+" ]";
+}
+function convertJsonCircle(circleCenterRadius) {
+    // As required by JSON for representing map coordinates, this function 
+    // converts the order of the coordinate pair from lat,lon to x,y.
+    var jsonCircle = "";
+    var parts = circleCenterRadius.split(" ");
+    var radius = parts[1];
+    var coordPair = parts[0].split(",");
+    return coordPair[1]+","+coordPair[0]+" "+radius;
+}
+function onLoadFunction() {
+    var defaultLatLng = "0,0";
+    var defaultZoom = "1";
+    initializeMap(defaultLatLng,defaultZoom);
+    makeJson();
+    return;
+}
+</script>
+</body>
+</html>
