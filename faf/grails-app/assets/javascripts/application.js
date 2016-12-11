@@ -17,5 +17,7 @@ if (typeof jQuery !== 'undefined') {
         }).ajaxStop(function() {
             $('#spinner').fadeOut();
         });
+
+        $('.dropdown-toggle').dropdown();
     })(jQuery);
 }

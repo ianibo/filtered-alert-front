@@ -8,7 +8,5 @@
 </head>
 <body>
 
- <asset:javascript src="application.js"/>
-
 </body>
 </html>
