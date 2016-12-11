@@ -9,6 +9,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1"/>
 
     <asset:stylesheet src="application.css"/>
+    <asset:javascript src="bootstrap-all.js"/>
 
     <g:layoutHead/>
 </head>
@@ -24,23 +25,32 @@
         </button>
         <a class="navbar-brand" href="#">Filtered Alert Hub</a>
       </div>
+
+      <div class="collapse navbar-collapse pull-right">
+        <ul class="nav navbar-nav">
+          <sec:ifLoggedIn>
+            <li class="dropdown">
+              <a href="#" class="dropdown-toggle" data-toggle="dropdown">${sec.username()}<b class="caret"></b></a>
+              <ul class="dropdown-menu">
+                <li><g:link controller="home" action="logout">Logout</g:link></li>
+                <li class="divider"></li>
+                <li class="dropdown-header">Nav header</li>
+                <li><a href="#">Separated link</a></li>
+              </ul>
+            </li>
+          </sec:ifLoggedIn>
+          <sec:ifNotLoggedIn>
+            <li class="${controllerName=='home' && actionName=='login' ? 'active' : ''}"><g:link controller="home" action="login">Login</g:link></li>
+          </sec:ifNotLoggedIn>
+        </ul>
+      </div>
+
       <div class="collapse navbar-collapse">
         <ul class="nav navbar-nav">
           <li class="${controllerName=='home' && actionName=='index' ? 'active' : ''}"><g:link controller="home" action="index">Home</g:link></li>
-          <!--
-          <li class="dropdown">
-            <a href="#" class="dropdown-toggle" data-toggle="dropdown">Dropdown <b class="caret"></b></a>
-            <ul class="dropdown-menu">
-              <li><a href="#">Action</a></li>
-              <li><a href="#">Another action</a></li>
-              <li><a href="#">Something else here</a></li>
-              <li class="divider"></li>
-              <li class="dropdown-header">Nav header</li>
-              <li><a href="#">Separated link</a></li>
-              <li><a href="#">One more separated link</a></li>
-            </ul>
-          </li>
-          -->
+          <sec:ifAnyGranted roles="ROLE_ADMIN,KBPLUS_EDITOR">
+            <li class="${controllerName=='subscriptions' && actionName=='index' ? 'active' : ''}"><g:link controller="subscriptions" action="index">Subscriptions</g:link></li>
+          </sec:ifAnyGranted>
         </ul>
       </div><!--/.nav-collapse -->
     </div>
